@@ -1,9 +1,24 @@
-Hey there, if you want to use this template you can without and restriction.
+Hey there, you're welcome to use this template without any restrictions. Just follow these steps to get started:
 
-Just follow this:
+1. **Install dependencies**
 
-1. Install dependencies: pip install flask python-docx
-2. Create a folder named reviews in the same directory as this script.
-3. Place your generated .docx files (systematic literature reviews) into the reviews folder.
-4. Run the script: python app.py (save the code as app.py).
-5. Open http://127.0.0.1:5000/ in your browser to see the blog. Click on a file to view its parsed content.
+   ```bash
+   pip install flask python-docx
+   ```
+
+2. **Create a folder**
+   In the same directory as the script, create a folder named `reviews`.
+
+3. **Add your `.docx` files**
+   Drop in any systematic literature review documents you’ve generated.
+
+4. **Run the script**
+   Save the code as `lithub.py`, then run:
+
+   ```bash
+   python app.py
+   ```
+
+5. **Open your browser**
+   Visit: [http://127.0.0.1:5000](http://127.0.0.1:5000)
+   Click on any document to view its parsed content.
