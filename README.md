@@ -3,7 +3,7 @@ Hey there, you're welcome to use this template without any restrictions. Just fo
 1. **Install dependencies**
 
    ```bash
-   pip install flask python-docx
+   pip install flask python-docx pillow
    ```
 
 2. **Create a folder**

@@ -1,12 +1,14 @@
-from flask import Flask, render_template_string, request, redirect, url_for
-from docx import Document
-from docx.shared import Inches
 import os
 import sqlite3
 from datetime import datetime
 import base64
 from io import BytesIO
-from PIL import Image
+
+from flask import Flask, render_template_string, request, redirect, url_for # type: ignore
+from docx import Document # pyright: ignore[reportMissingImports]
+# Removed unused Inches import
+from PIL import Image # type: ignore
+
 
 app = Flask(__name__)
 
@@ -34,13 +36,11 @@ def extract_docx_content(filepath):
     title = None
     description = None
 
-    # Extract title and description
     if len(doc.paragraphs) > 0:
         title = doc.paragraphs[0].text.strip() or "Untitled Review"
     if len(doc.paragraphs) > 1:
         description = doc.paragraphs[1].text.strip() or "No description available."
 
-    # Parse paragraphs and recognize chapters/headings
     for para in doc.paragraphs[2:]:
         style = para.style.name.lower()
         para_html = ''
@@ -62,7 +62,6 @@ def extract_docx_content(filepath):
         if para_html:
             content.append(f'<p>{para_html}</p>')
 
-    # Extract images
     for rel in doc.part.rels.values():
         if "image" in rel.reltype:
             img_data = rel.target_part.blob
@@ -106,7 +105,9 @@ def home():
                 <div class="bg-white p-6 rounded-lg shadow-md">
                     <h2 class="text-xl font-semibold mb-2">{{ review.title }}</h2>
                     <p class="text-gray-600 mb-4">{{ review.description }}</p>
-                    <a href="/review/{{ review.filename }}" class="text-blue-600 hover:underline">Read More</a>
+                    <a href="/review/{{ review.filename }}" class="text-blue-600 hover:underline">
+                    Read More
+                    </a>
                 </div>
                 {% endfor %}
             </div>
@@ -134,7 +135,8 @@ def review(name):
         if comment:
             with sqlite3.connect(DB_FILE) as conn:
                 c = conn.cursor()
-                c.execute("INSERT INTO comments (review_name, comment, timestamp) VALUES (?, ?, ?)",
+                c.execute("INSERT INTO comments (review_name, comment, timestamp) \
+                  VALUES (?, ?, ?)",
                           (name, comment, datetime.now().strftime('%Y-%m-%d %H:%M:%S')))
                 conn.commit()
         return redirect(url_for('review', name=name))
@@ -143,7 +145,11 @@ def review(name):
 
     with sqlite3.connect(DB_FILE) as conn:
         c = conn.cursor()
-        c.execute("SELECT comment, timestamp FROM comments WHERE review_name = ? ORDER BY timestamp DESC", (name,))
+        c.execute(
+            "SELECT comment, timestamp FROM comments WHERE review_name = ? \
+              ORDER BY timestamp DESC",
+            (name,)
+        )
         comments = c.fetchall()
 
     html = '''
@@ -175,8 +181,10 @@ def review(name):
             <div class="mt-8">
                 <h2 class="text-2xl font-semibold mb-4">Comments</h2>
                 <form method="POST" class="mb-6">
-                    <textarea name="comment" rows="4" class="w-full p-3 border rounded-lg" placeholder="Add your comment..." required></textarea>
-                    <button type="submit" class="bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700">Submit Comment</button>
+                    <textarea name="comment" rows="4" class="w-full p-3 border rounded-lg"
+                        placeholder="Add your comment..." required></textarea>
+                    <button type="submit" class="bg-blue-600 text-white py-2 px-4 rounded-lg 
+                        hover:bg-blue-700">Submit Comment</button>
                 </form>
                 {% if comments %}
                 <div class="space-y-4">
@@ -200,7 +208,8 @@ def review(name):
     </body>
     </html>
     '''
-    return render_template_string(html, title=title, description=description, content=content, images=images, comments=comments)
+    return render_template_string(html, title=title, description=description, content=content, 
+                                  images=images, comments=comments)
 
 if __name__ == '__main__':
     app.run(debug=True)
