@@ -1,3 +1,6 @@
+"""A Flask web application to display systematic literature reviews from .docx files,
+allowing users to upload new reviews and comment on them."""
+
 import base64
 import os
 import sqlite3
@@ -5,16 +8,17 @@ from datetime import datetime
 from io import BytesIO
 
 from docx import Document  # pyright: ignore[reportMissingImports]
-from flask import (Flask, redirect, render_template_string, request, url_for, flash)
+from flask import Flask, redirect, render_template_string, request, url_for, flash
 from PIL import Image  # type: ignore
 
 app = Flask(__name__)
-app.secret_key = 'your_secret_key'  # Needed for session and flashing messages
+app.secret_key = "your_secret_key"  # Needed for session and flashing messages
 
 REVIEWS_DIR = "reviews"
 DB_FILE = "comments.db"
 if not os.path.exists(REVIEWS_DIR):
     os.makedirs(REVIEWS_DIR)
+
 
 def init_db():
     """Initialize the SQLite database and create comments table if it doesn't exist."""
@@ -29,7 +33,9 @@ def init_db():
         )
         conn.commit()
 
+
 init_db()
+
 
 def extract_docx_content(filepath):
     """Extract text and images from a .docx file and convert to HTML."""
@@ -52,7 +58,8 @@ def extract_docx_content(filepath):
             chapter_title = para.text.strip()
             if chapter_title:
                 content.append(
-                    f'<h2 class="text-xl font-bold mt-6 mb-2">{chapter_title}</h2>')
+                    f'<h2 class="text-xl font-bold mt-6 mb-2">{chapter_title}</h2>'
+                )
             continue
 
         for run in para.runs:
@@ -78,6 +85,7 @@ def extract_docx_content(filepath):
 
     return title, description, "".join(content), images
 
+
 @app.route("/", methods=["GET", "POST"])
 @app.route("/", methods=["GET", "POST"])
 def home():
@@ -86,16 +94,17 @@ def home():
     """
     query = request.args.get("query", "")
     reviews = [f for f in os.listdir(REVIEWS_DIR) if f.endswith(".docx")]
-    
+
     reviews_data = []
     for review_data in reviews:
         path = os.path.join(REVIEWS_DIR, review_data)
         title, description, _, _ = extract_docx_content(path)
-        
+        created_on = datetime.fromtimestamp(os.path.getctime(path)).strftime('%Y-%m-%d %H:%M:%S')
+
         # Filter reviews based on search query
         if query.lower() in title.lower() or query.lower() in description.lower():
             reviews_data.append(
-                {"filename": review_data, "title": title, "description": description}
+                {"filename": review_data, "title": title, "description": description, "created_on": created_on}
             )
 
     # Handle file upload
@@ -107,8 +116,7 @@ def home():
             file.save(file_path)
             flash("File uploaded successfully!", "success")
             return redirect(url_for("home"))
-        else:
-            flash("Invalid file format. Please upload a .docx file.", "danger")
+        flash("Invalid file format. Please upload a .docx file.", "danger")
 
     # Check if any reviews match the query
     no_results = len(reviews_data) == 0
@@ -157,6 +165,7 @@ def home():
                     <a href="/review/{{ review.filename }}" class="text-blue-600 hover:underline">
                     Read More
                     </a>
+                    <p class="text-gray-500 text-sm">Created on {{ review.created_on }}</p> <!-- Add this line -->
                 </div>
                 {% endfor %}
             </div>
@@ -191,7 +200,9 @@ def home():
     </body>
     </html>
     """
-    return render_template_string(html, reviews=reviews_data, query=query, no_results=no_results)
+    return render_template_string(
+        html, reviews=reviews_data, query=query, no_results=no_results
+    )
 
 
 @app.route("/review/<name>", methods=["GET", "POST"])
@@ -291,6 +302,7 @@ def review(name):
         images=images,
         comments=comments,
     )
+
 
 if __name__ == "__main__":
     app.run(debug=True)
