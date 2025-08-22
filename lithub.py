@@ -12,14 +12,8 @@ from datetime import datetime
 from io import BytesIO
 
 from docx import Document  # pyright: ignore[reportMissingImports]
-from flask import (
-    Flask,
-    redirect,
-    render_template_string,  # type: ignore
-    request,
-    url_for,
-)
-
+from flask import (Flask, redirect, render_template_string,  # type: ignore
+                   request, url_for)
 # Removed unused Inches import
 from PIL import Image  # type: ignore
 
@@ -50,16 +44,9 @@ init_db()
 
 def get_title_and_description(doc):
     """Extract the title and description from the document."""
-    title = (
-        doc.paragraphs[0].text.strip() if len(doc.paragraphs) > 0 else "Untitled Review"
-    )
-    description = (
-        doc.paragraphs[1].text.strip()
-        if len(doc.paragraphs) > 1
-        else "No description available."
-    )
+    title = doc.paragraphs[0].text.strip() if len(doc.paragraphs) > 0 else "Untitled Review"
+    description = doc.paragraphs[1].text.strip() if len(doc.paragraphs) > 1 else "No description available."
     return title, description
-
 
 def extract_chapters(doc):
     """Extract chapters or headings from the document."""
@@ -68,29 +55,25 @@ def extract_chapters(doc):
         style = para.style.name.lower()
         if "heading" in style or para.text.strip().lower().startswith("chapter"):
             chapter_title = para.text.strip()
-            content.append(
-                f'<h2 class="text-xl font-bold mt-6 mb-2">{chapter_title}</h2>'
-            )
+            content.append(f'<h2 class="text-xl font-bold mt-6 mb-2">{chapter_title}</h2>')
     return content
-
 
 def extract_paragraphs(doc):
     """Extract paragraphs and format them as HTML."""
     content = []
     for para in doc.paragraphs[2:]:
-        para_html = "".join(
-            (
-                f"<b>{run.text}</b>"
-                if run.bold
-                else f"<i>{run.text}</i>" if run.italic else run.text
-            )
-            for run in para.runs
-            if run.text.strip()
-        )
+        para_html = ""
+        for run in para.runs:
+            text = run.text
+            if text.strip():
+                if run.bold:
+                    text = f"<b>{text}</b>"
+                if run.italic:
+                    text = f"<i>{text}</i>"
+                para_html += text
         if para_html:
             content.append(f"<p>{para_html}</p>")
     return content
-
 
 def extract_images(doc):
     """Extract and encode images to base64."""
@@ -106,7 +89,6 @@ def extract_images(doc):
             images.append(f"data:image/{img_format};base64,{img_base64}")
     return images
 
-
 def extract_docx_content(filepath):
     """Extract text and images from a .docx file and convert to HTML."""
     doc = Document(filepath)
@@ -114,6 +96,7 @@ def extract_docx_content(filepath):
     content = extract_chapters(doc) + extract_paragraphs(doc)
     images = extract_images(doc)
     return title, description, "".join(content), images
+
 
 
 @app.route("/")
@@ -124,7 +107,7 @@ def home():
     reviews = [f for f in os.listdir(REVIEWS_DIR) if f.endswith(".docx")]
     reviews_data = []
     for review_data in reviews:
-        path = os.path.join(REVIEWS_DIR, reviews_data)
+        path = os.path.join(REVIEWS_DIR, review_data)
         title, description, _, _ = extract_docx_content(path)
         reviews_data.append(
             {"filename": review_data, "title": title, "description": description}
