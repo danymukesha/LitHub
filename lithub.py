@@ -105,7 +105,9 @@ def home():
                 <div class="bg-white p-6 rounded-lg shadow-md">
                     <h2 class="text-xl font-semibold mb-2">{{ review.title }}</h2>
                     <p class="text-gray-600 mb-4">{{ review.description }}</p>
-                    <a href="/review/{{ review.filename }}" class="text-blue-600 hover:underline">Read More</a>
+                    <a href="/review/{{ review.filename }}" class="text-blue-600 hover:underline">
+                    Read More
+                    </a>
                 </div>
                 {% endfor %}
             </div>
@@ -142,7 +144,10 @@ def review(name):
 
     with sqlite3.connect(DB_FILE) as conn:
         c = conn.cursor()
-        c.execute("SELECT comment, timestamp FROM comments WHERE review_name = ? ORDER BY timestamp DESC", (name,))
+        c.execute(
+            "SELECT comment, timestamp FROM comments WHERE review_name = ? ORDER BY timestamp DESC",
+            (name,)
+        )
         comments = c.fetchall()
 
     html = '''
@@ -199,7 +204,8 @@ def review(name):
     </body>
     </html>
     '''
-    return render_template_string(html, title=title, description=description, content=content, images=images, comments=comments)
+    return render_template_string(html, title=title, description=description, content=content, 
+                                  images=images, comments=comments)
 
 if __name__ == '__main__':
     app.run(debug=True)
