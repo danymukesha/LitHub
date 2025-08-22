@@ -18,6 +18,7 @@ if not os.path.exists(REVIEWS_DIR):
     os.makedirs(REVIEWS_DIR)
 
 def init_db():
+    """Initialize the SQLite database and create comments table if it doesn't exist."""
     with sqlite3.connect(DB_FILE) as conn:
         c = conn.cursor()
         c.execute('''CREATE TABLE IF NOT EXISTS comments
@@ -30,6 +31,7 @@ def init_db():
 init_db()
 
 def extract_docx_content(filepath):
+    """Extract text and images from a .docx file and convert to HTML."""
     doc = Document(filepath)
     content = []
     images = []
@@ -76,13 +78,15 @@ def extract_docx_content(filepath):
 
 @app.route('/')
 def home():
+    """
+    Home page displaying a list of reviews.
+    """
     reviews = [f for f in os.listdir(REVIEWS_DIR) if f.endswith('.docx')]
     reviews_data = []
     for review in reviews:
         path = os.path.join(REVIEWS_DIR, review)
         title, description, _, _ = extract_docx_content(path)
         reviews_data.append({'filename': review, 'title': title, 'description': description})
-    
     html = '''
     <!DOCTYPE html>
     <html lang="en">
@@ -124,6 +128,8 @@ def home():
 
 @app.route('/review/<name>', methods=['GET', 'POST'])
 def review(name):
+    """ Display a specific review and handle comments.
+    """
     if not name.endswith('.docx'):
         return "Invalid file", 400
     path = os.path.join(REVIEWS_DIR, name)
@@ -209,7 +215,8 @@ def review(name):
     </html>
     '''
     return render_template_string(html, title=title, description=description, content=content, 
-                                  images=images, comments=comments)
+          images=images, comments=comments)
 
 if __name__ == '__main__':
     app.run(debug=True)
+    
