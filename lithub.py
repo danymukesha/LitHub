@@ -1,12 +1,14 @@
-from flask import Flask, render_template_string, request, redirect, url_for
-from docx import Document
-from docx.shared import Inches
 import os
 import sqlite3
 from datetime import datetime
 import base64
 from io import BytesIO
-from PIL import Image
+
+from flask import Flask, render_template_string, request, redirect, url_for # type: ignore
+from docx import Document # pyright: ignore[reportMissingImports]
+# Removed unused Inches import
+from PIL import Image # type: ignore
+
 
 app = Flask(__name__)
 
@@ -34,13 +36,11 @@ def extract_docx_content(filepath):
     title = None
     description = None
 
-    # Extract title and description
     if len(doc.paragraphs) > 0:
         title = doc.paragraphs[0].text.strip() or "Untitled Review"
     if len(doc.paragraphs) > 1:
         description = doc.paragraphs[1].text.strip() or "No description available."
 
-    # Parse paragraphs and recognize chapters/headings
     for para in doc.paragraphs[2:]:
         style = para.style.name.lower()
         para_html = ''
@@ -62,7 +62,6 @@ def extract_docx_content(filepath):
         if para_html:
             content.append(f'<p>{para_html}</p>')
 
-    # Extract images
     for rel in doc.part.rels.values():
         if "image" in rel.reltype:
             img_data = rel.target_part.blob
