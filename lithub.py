@@ -8,7 +8,9 @@ from datetime import datetime
 from io import BytesIO
 
 from docx import Document  # pyright: ignore[reportMissingImports]
-from flask import Flask, redirect, render_template_string, request, url_for, flash
+from flask import request  # type: ignore
+from flask import (Flask, flash, redirect,  # type: ignore
+                   render_template_string, url_for)
 from PIL import Image  # type: ignore
 
 app = Flask(__name__)
@@ -48,7 +50,8 @@ def extract_docx_content(filepath):
     if len(doc.paragraphs) > 0:
         title = doc.paragraphs[0].text.strip() or "Untitled Review"
     if len(doc.paragraphs) > 1:
-        description = doc.paragraphs[1].text.strip() or "No description available."
+        description = doc.paragraphs[1].text.strip(
+        ) or "No description available."
 
     for para in doc.paragraphs[2:]:
         style = para.style.name.lower()
@@ -58,8 +61,7 @@ def extract_docx_content(filepath):
             chapter_title = para.text.strip()
             if chapter_title:
                 content.append(
-                    f'<h2 class="text-xl font-bold mt-6 mb-2">{chapter_title}</h2>'
-                )
+                    f'<h2 class="text-xl font-bold mt-6 mb-2">{chapter_title}</h2>')
             continue
 
         for run in para.runs:
@@ -87,7 +89,6 @@ def extract_docx_content(filepath):
 
 
 @app.route("/", methods=["GET", "POST"])
-@app.route("/", methods=["GET", "POST"])
 def home():
     """
     Home page displaying a list of reviews and an option to upload a new review.
@@ -99,15 +100,20 @@ def home():
     for review_data in reviews:
         path = os.path.join(REVIEWS_DIR, review_data)
         title, description, _, _ = extract_docx_content(path)
-        created_on = datetime.fromtimestamp(os.path.getctime(path)).strftime('%Y-%m-%d %H:%M:%S')
+        created_on = datetime.fromtimestamp(os.path.getctime(path)).strftime(
+            "%Y-%m-%d %H:%M:%S"
+        )
 
-        # Filter reviews based on search query
         if query.lower() in title.lower() or query.lower() in description.lower():
             reviews_data.append(
-                {"filename": review_data, "title": title, "description": description, "created_on": created_on}
+                {
+                    "filename": review_data,
+                    "title": title,
+                    "description": description,
+                    "created_on": created_on,
+                }
             )
 
-    # Handle file upload
     if request.method == "POST":
         file = request.files.get("file")
         if file and file.filename.endswith(".docx"):
@@ -118,7 +124,6 @@ def home():
             return redirect(url_for("home"))
         flash("Invalid file format. Please upload a .docx file.", "danger")
 
-    # Check if any reviews match the query
     no_results = len(reviews_data) == 0
 
     html = """
@@ -141,14 +146,14 @@ def home():
             <div class="mb-6">
                 <!-- Search Bar -->
                 <form method="GET" action="/" class="flex items-center space-x-4">
-                    <input type="text" name="query" value="{{ query }}" placeholder="Search reviews..." 
+                    <input type="text" name="query" value="{{ query }}" placeholder="Search reviews..."
                         class="w-full p-2 border rounded-lg" />
                     <button type="submit" class="bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700">
                         Search
                     </button>
                 </form>
             </div>
-            
+
             <div class="mb-6">
                 {% if no_results %}
                     <div class="bg-yellow-100 text-yellow-800 p-3 rounded-lg">
@@ -156,7 +161,7 @@ def home():
                     </div>
                 {% endif %}
             </div>
-            
+
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {% for review in reviews %}
                 <div class="bg-white p-6 rounded-lg shadow-md">
@@ -169,7 +174,7 @@ def home():
                 </div>
                 {% endfor %}
             </div>
-            
+
             <!-- File Upload Form -->
             <div class="mt-8">
                 <h2 class="text-xl font-semibold mb-4">Upload New Review</h2>
@@ -214,6 +219,7 @@ def review(name):
     if not os.path.exists(path):
         return "File not found", 404
 
+    # Handle new comment submission
     if request.method == "POST":
         comment = request.form.get("comment")
         if comment:
@@ -227,8 +233,10 @@ def review(name):
                 conn.commit()
         return redirect(url_for("review", name=name))
 
+    # Extract document content (title, description, and formatted content)
     title, description, content, images = extract_docx_content(path)
 
+    # Retrieve comments from the database for this specific review
     with sqlite3.connect(DB_FILE) as conn:
         c = conn.cursor()
         c.execute(
@@ -238,6 +246,7 @@ def review(name):
         )
         comments = c.fetchall()
 
+    # Render the review page with comments and content
     html = """
     <!DOCTYPE html>
     <html lang="en">
@@ -261,6 +270,10 @@ def review(name):
                     {% for img in images %}
                     <img src="{{ img }}" alt="Document Image" class="my-4 max-w-full h-auto">
                     {% endfor %}
+                    <a href="/edit/{{ name }}" class="text-green-600 hover:underline mt-4 inline-block
+                    bg-green-600 text-white py-2 px-4 rounded-lg hover:bg-green-700 mt-4 inline-block">
+                    Edit Review
+                </a>
                 </div>
                 <a href="/" class="text-blue-600 hover:underline mt-4 inline-block">Back to Home</a>
             </div>
@@ -301,7 +314,127 @@ def review(name):
         content=content,
         images=images,
         comments=comments,
+        name=name,
     )
+
+
+@app.route("/edit/<filename>", methods=["GET", "POST"])
+def edit_review(filename):
+    """Allow users to edit a specific review."""
+    # Make sure the file exists
+    path = os.path.join(REVIEWS_DIR, filename)
+    if not os.path.exists(path):
+        return "File not found", 404
+
+    # Extract document content for editing
+    title, description, content, _ = extract_docx_content(path)
+
+    if request.method == "POST":
+        new_title = request.form.get("title")
+        new_description = request.form.get("description")
+        file = request.files.get("file")  # Handle file upload
+
+        if new_title and new_description:
+            # Update title and description
+            doc = Document(path)
+            doc.paragraphs[0].text = new_title
+            doc.paragraphs[1].text = new_description
+            doc.save(path)
+            flash("Title and Description updated successfully!", "success")
+            return redirect(url_for("home"))
+
+        if file and file.filename.endswith(".docx"):
+            # Replace entire file content with a new .docx file
+            filename = file.filename
+            file_path = os.path.join(REVIEWS_DIR, filename)
+            file.save(file_path)
+
+            # Extract and update content with the new file
+            title, description, content, _ = extract_docx_content(file_path)
+
+            # Now update the document with the new content
+            doc = Document(file_path)
+            doc.paragraphs[0].text = title
+            doc.paragraphs[1].text = description
+            doc.save(file_path)
+            flash("Review content replaced with new file successfully!", "success")
+            return redirect(url_for("home"))
+
+        # Flash error if neither title/description nor file were provided
+        flash(
+            "No changes were made. Please update either the title/description or upload a file.",
+            "danger",
+        )
+
+        return redirect(url_for("edit_review", filename=filename))
+
+    # Render the edit page
+    html = """
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Edit Review</title>
+        <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
+        <script src="https://cdn.quilljs.com/1.3.6/quill.min.js"></script>
+        <script src="https://cdn.tailwindcss.com"></script>
+    </head>
+    <body class="bg-gray-100 font-sans">
+        <header class="bg-blue-600 text-white py-6">
+            <div class="container mx-auto px-4">
+                <h1 class="text-3xl font-bold">Edit Review: {{ title }}</h1>
+            </div>
+        </header>
+        <main class="container mx-auto px-4 py-8">
+            <form method="POST">
+                <div class="mb-4">
+                    <label for="title" class="block text-gray-700">Title</label>
+                    <input type="text" name="title" id="title" value="{{ title }}" class="w-full p-2 border rounded-lg" required>
+                </div>
+                <div class="mb-4">
+                    <label for="description" class="block text-gray-700">Description</label>
+                    <textarea name="description" id="description" rows="4" class="w-full p-2 border rounded-lg" required>{{ description }}</textarea>
+                </div>
+                <p>At the moment, editing the main content is not supported, only changes to the title and description.
+                If you want to make major changes, please upload a new .docx file to replace the content.</p>
+                <div class="mb-4">
+                    <label for="file" class="block text-gray-700">Upload New DOCX (Optional)</label>
+                    <input type="file" name="file" id="file" class="w-full p-2 border rounded-lg" accept=".docx">
+                </div>
+                <button type="submit" class="bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700">Save Changes</button>
+            </form>
+            <a href="/review/{{ name }}" class="text-blue-600 hover:underline mt-4 inline-block">Back to Review</a>
+        </main>
+
+        <script>
+            // Initialize Quill editor
+            var quill = new Quill('#editor', {
+                theme: 'snow',
+                modules: {
+                    toolbar: [
+                        [{ 'header': '1'}, {'header': '2'}, { 'font': [] }],
+                        [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                        ['bold', 'italic', 'underline'],
+                        [{ 'align': [] }],
+                        ['link', 'image']
+                    ]
+                }
+            });
+
+            // Add initial content from the backend (using Quill's insertText method)
+            quill.root.innerHTML = `{{ content|safe }}`;
+        </script>
+    </body>
+    </html>
+
+    """
+    return render_template_string(
+        html,
+        title=title,
+        description=description,
+        content=content,
+        name=filename)
 
 
 if __name__ == "__main__":
