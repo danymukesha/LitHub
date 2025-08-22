@@ -34,13 +34,23 @@ def extract_docx_content(filepath):
     title = None
     description = None
 
+    # Extract title and description
     if len(doc.paragraphs) > 0:
         title = doc.paragraphs[0].text.strip() or "Untitled Review"
     if len(doc.paragraphs) > 1:
         description = doc.paragraphs[1].text.strip() or "No description available."
 
-    for para in doc.paragraphs[2:]:  # skip title and description
+    # Parse paragraphs and recognize chapters/headings
+    for para in doc.paragraphs[2:]:
+        style = para.style.name.lower()
         para_html = ''
+
+        if "heading" in style or para.text.strip().lower().startswith("chapter"):
+            chapter_title = para.text.strip()
+            if chapter_title:
+                content.append(f'<h2 class="text-xl font-bold mt-6 mb-2">{chapter_title}</h2>')
+            continue
+
         for run in para.runs:
             text = run.text
             if text.strip():
@@ -52,6 +62,7 @@ def extract_docx_content(filepath):
         if para_html:
             content.append(f'<p>{para_html}</p>')
 
+    # Extract images
     for rel in doc.part.rels.values():
         if "image" in rel.reltype:
             img_data = rel.target_part.blob
