@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: lithub
+    name: lithub-web
     env: python
     plan: free
     buildCommand: pip install -r requirements.txt
