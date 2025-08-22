@@ -1,10 +1,3 @@
-"""
-This is a Flask application for displaying and commenting on systematic literature reviews.
-Users can upload `.docx` files, view them with their content (text and images), and leave comments.
-
-The app uses SQLite to store comments and serves the reviews dynamically.
-"""
-
 import base64
 import os
 import sqlite3
@@ -12,18 +5,16 @@ from datetime import datetime
 from io import BytesIO
 
 from docx import Document  # pyright: ignore[reportMissingImports]
-from flask import (Flask, redirect, render_template_string,  # type: ignore
-                   request, url_for)
-# Removed unused Inches import
+from flask import (Flask, redirect, render_template_string, request, url_for, flash)
 from PIL import Image  # type: ignore
 
 app = Flask(__name__)
+app.secret_key = 'your_secret_key'  # Needed for session and flashing messages
 
 REVIEWS_DIR = "reviews"
 DB_FILE = "comments.db"
 if not os.path.exists(REVIEWS_DIR):
     os.makedirs(REVIEWS_DIR)
-
 
 def init_db():
     """Initialize the SQLite database and create comments table if it doesn't exist."""
@@ -38,9 +29,7 @@ def init_db():
         )
         conn.commit()
 
-
 init_db()
-
 
 def extract_docx_content(filepath):
     """Extract text and images from a .docx file and convert to HTML."""
@@ -53,8 +42,7 @@ def extract_docx_content(filepath):
     if len(doc.paragraphs) > 0:
         title = doc.paragraphs[0].text.strip() or "Untitled Review"
     if len(doc.paragraphs) > 1:
-        description = doc.paragraphs[1].text.strip(
-        ) or "No description available."
+        description = doc.paragraphs[1].text.strip() or "No description available."
 
     for para in doc.paragraphs[2:]:
         style = para.style.name.lower()
@@ -90,20 +78,41 @@ def extract_docx_content(filepath):
 
     return title, description, "".join(content), images
 
-
-@app.route("/")
+@app.route("/", methods=["GET", "POST"])
+@app.route("/", methods=["GET", "POST"])
 def home():
     """
-    Home page displaying a list of reviews.
+    Home page displaying a list of reviews and an option to upload a new review.
     """
+    query = request.args.get("query", "")
     reviews = [f for f in os.listdir(REVIEWS_DIR) if f.endswith(".docx")]
+    
     reviews_data = []
     for review_data in reviews:
         path = os.path.join(REVIEWS_DIR, review_data)
         title, description, _, _ = extract_docx_content(path)
-        reviews_data.append(
-            {"filename": review_data, "title": title, "description": description}
-        )
+        
+        # Filter reviews based on search query
+        if query.lower() in title.lower() or query.lower() in description.lower():
+            reviews_data.append(
+                {"filename": review_data, "title": title, "description": description}
+            )
+
+    # Handle file upload
+    if request.method == "POST":
+        file = request.files.get("file")
+        if file and file.filename.endswith(".docx"):
+            filename = file.filename
+            file_path = os.path.join(REVIEWS_DIR, filename)
+            file.save(file_path)
+            flash("File uploaded successfully!", "success")
+            return redirect(url_for("home"))
+        else:
+            flash("Invalid file format. Please upload a .docx file.", "danger")
+
+    # Check if any reviews match the query
+    no_results = len(reviews_data) == 0
+
     html = """
     <!DOCTYPE html>
     <html lang="en">
@@ -121,6 +130,25 @@ def home():
             </div>
         </header>
         <main class="container mx-auto px-4 py-8">
+            <div class="mb-6">
+                <!-- Search Bar -->
+                <form method="GET" action="/" class="flex items-center space-x-4">
+                    <input type="text" name="query" value="{{ query }}" placeholder="Search reviews..." 
+                        class="w-full p-2 border rounded-lg" />
+                    <button type="submit" class="bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700">
+                        Search
+                    </button>
+                </form>
+            </div>
+            
+            <div class="mb-6">
+                {% if no_results %}
+                    <div class="bg-yellow-100 text-yellow-800 p-3 rounded-lg">
+                        No reviews found for your query.
+                    </div>
+                {% endif %}
+            </div>
+            
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {% for review in reviews %}
                 <div class="bg-white p-6 rounded-lg shadow-md">
@@ -132,6 +160,28 @@ def home():
                 </div>
                 {% endfor %}
             </div>
+            
+            <!-- File Upload Form -->
+            <div class="mt-8">
+                <h2 class="text-xl font-semibold mb-4">Upload New Review</h2>
+                <form method="POST" enctype="multipart/form-data">
+                    <input type="file" name="file" class="border p-2 rounded-lg mb-4" accept=".docx" required>
+                    <button type="submit" class="bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700">
+                        Upload Review
+                    </button>
+                </form>
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% if messages %}
+                    <div class="mt-4">
+                        {% for category, message in messages %}
+                        <div class="bg-{{ category }}-100 text-{{ category }}-800 p-3 rounded-lg mb-3">
+                            {{ message }}
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                {% endwith %}
+            </div>
         </main>
         <footer class="bg-gray-800 text-white py-4">
             <div class="container mx-auto px-4 text-center">
@@ -141,7 +191,7 @@ def home():
     </body>
     </html>
     """
-    return render_template_string(html, reviews=reviews_data)
+    return render_template_string(html, reviews=reviews_data, query=query, no_results=no_results)
 
 
 @app.route("/review/<name>", methods=["GET", "POST"])
@@ -241,7 +291,6 @@ def review(name):
         images=images,
         comments=comments,
     )
-
 
 if __name__ == "__main__":
     app.run(debug=True)
