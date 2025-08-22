@@ -1,4 +1,3 @@
 Flask
 python-docx
-pillow
-
+Pillow
