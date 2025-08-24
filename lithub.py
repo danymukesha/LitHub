@@ -3,14 +3,17 @@ allowing users to upload new reviews and comment on them."""
 
 import base64
 import os
+import re
 import sqlite3
 from datetime import datetime
 from io import BytesIO
 
 from docx import Document  # pyright: ignore[reportMissingImports]
-from flask import request  # type: ignore
-from flask import (Flask, flash, redirect,  # type: ignore
-                   render_template_string, url_for)
+from docx.oxml.ns import qn
+from docx.table import Table
+from docx.text.paragraph import Paragraph
+from flask import redirect  # type: ignore
+from flask import Flask, flash, render_template_string, request, url_for
 from PIL import Image  # type: ignore
 
 app = Flask(__name__)
@@ -40,41 +43,107 @@ init_db()
 
 
 def extract_docx_content(filepath):
-    """Extract text and images from a .docx file and convert to HTML."""
+    """Extract content from a .docx file preserving order of paragraphs, tables, images, and lists."""
+
+    def iter_block_items(parent):
+        """Yield paragraphs and tables in the order they appear in the document."""
+        parent_elm = parent.element.body
+        for child in parent_elm.iterchildren():
+            if child.tag == qn("w:p"):
+                yield Paragraph(child, parent)
+            elif child.tag == qn("w:tbl"):
+                yield Table(child, parent)
+
     doc = Document(filepath)
     content = []
-    images = []
-    title = None
-    description = None
 
-    if len(doc.paragraphs) > 0:
-        title = doc.paragraphs[0].text.strip() or "Untitled Review"
-    if len(doc.paragraphs) > 1:
-        description = doc.paragraphs[1].text.strip(
-        ) or "No description available."
+    # Title and description (only first two paragraphs)
+    title = doc.paragraphs[0].text.strip(
+    ) if doc.paragraphs else "Untitled Review"
+    description = (
+        doc.paragraphs[1].text.strip()
+        if len(doc.paragraphs) > 1
+        else "No description available."
+    )
 
-    for para in doc.paragraphs[2:]:
-        style = para.style.name.lower()
-        para_html = ""
+    # Actual content starts after title + description
+    block_items = list(iter_block_items(doc))[2:]
 
-        if "heading" in style or para.text.strip().lower().startswith("chapter"):
-            chapter_title = para.text.strip()
-            if chapter_title:
+    list_open = None
+
+    for block in block_items:
+        # Paragraphs
+        if isinstance(block, Paragraph):
+            style = block.style.name.lower()
+            text = block.text.strip()
+
+            # Skip empty paragraphs
+            if not text:
+                continue
+
+            # Headings
+            if "heading" in style or text.lower().startswith("chapter"):
+                if list_open:
+                    content.append(f"</{list_open}>")
+                    list_open = None
                 content.append(
-                    f'<h2 class="text-xl font-bold mt-6 mb-2">{chapter_title}</h2>')
-            continue
+                    f'<h2 class="text-xl font-bold mt-6 mb-2">{text}</h2>')
+                continue
 
-        for run in para.runs:
-            text = run.text
-            if text.strip():
+            # Lists (bullet or numbered)
+            if style.startswith("list") or re.search(r"bullet|number", style):
+                tag = "ul" if "bullet" in style else "ol"
+                if list_open and list_open != tag:
+                    content.append(f"</{list_open}>")
+                    list_open = tag
+                    content.append(f"<{tag}>")
+                elif not list_open:
+                    list_open = tag
+                    content.append(f"<{tag}>")
+                content.append(f"<li>{text}</li>")
+                continue
+            else:
+                if list_open:
+                    content.append(f"</{list_open}>")
+                    list_open = None
+
+            # Rich text formatting
+            para_html = ""
+            for run in block.runs:
+                run_text = run.text
+                if not run_text:
+                    continue
                 if run.bold:
-                    text = f"<b>{text}</b>"
+                    run_text = f"<b>{run_text}</b>"
                 if run.italic:
-                    text = f"<i>{text}</i>"
-                para_html += text
-        if para_html:
-            content.append(f"<p>{para_html}</p>")
+                    run_text = f"<i>{run_text}</i>"
+                para_html += run_text
 
+            if para_html.strip():
+                content.append(f"<p>{para_html.strip()}</p>")
+
+        # Tables
+        elif isinstance(block, Table):
+            if list_open:
+                content.append(f"</{list_open}>")
+                list_open = None
+            table_html = (
+                '<table class="table-auto border border-collapse border-gray-300 my-4">'
+            )
+            for row in block.rows:
+                table_html += "<tr>"
+                for cell in row.cells:
+                    table_html += f'<td class="border p-2">{
+                        cell.text.strip()}</td>'
+                table_html += "</tr>"
+            table_html += "</table>"
+            content.append(table_html)
+
+    # Close any unclosed list
+    if list_open:
+        content.append(f"</{list_open}>")
+
+    # Images (appended after all content for now)
     for rel in doc.part.rels.values():
         if "image" in rel.reltype:
             img_data = rel.target_part.blob
@@ -83,9 +152,10 @@ def extract_docx_content(filepath):
             img_io = BytesIO()
             img.save(img_io, format=img_format)
             img_base64 = base64.b64encode(img_io.getvalue()).decode("utf-8")
-            images.append(f"data:image/{img_format};base64,{img_base64}")
+            img_tag = f'<img src="data:image/{img_format};base64,{img_base64}" class="my-4 max-w-full h-auto"/>'
+            content.append(img_tag)
 
-    return title, description, "".join(content), images
+    return title, description, "".join(content), []
 
 
 @app.route("/", methods=["GET", "POST"])
