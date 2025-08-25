@@ -12,7 +12,7 @@ Hey there, you're welcome to use this template without any restrictions. Just fo
 2. **Install dependencies**
 
    ```bash
-   pip install flask python-docx pillow
+   pip install -r requirements.txt
    ```
 
 3. **Create a folder**
