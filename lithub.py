@@ -271,9 +271,9 @@ def review(name):
                   {% for img in images %}
                     <img src="{{ img }}" alt="Document Image" class="my-4 max-w-1/4 h-auto" style="width: 100px; height: auto;">
                   {% endfor %}
-                  <a href="/edit/{{ name }}" class="text-green-600 hover:underline mt-4 inline-block
-                    bg-green-600 text-white py-2 px-4 rounded-lg hover:bg-green-700 mt-4 inline-block">
-                    Edit Review
+                  <a href="/edit/{{ name }}" class="bg-green-600 text-white py-2 px-4 rounded-lg hover:underline hover:bg-green-700 
+                  focus:outline-none focus:ring-4 focus:ring-green-300 mt-4 inline-block">
+                      Edit Review
                   </a>
                 </div>
                 <a href="/" class="text-blue-600 hover:underline mt-4 inline-block">Back to Home</a>
