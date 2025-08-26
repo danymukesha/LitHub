@@ -22,10 +22,10 @@ Hey there, you're welcome to use this template without any restrictions. Just fo
    Drop in any systematic literature review documents you’ve generated.
 
 5. **Run the script**
-   Save the code as `lithub.py`, then run:
+  Here is the run:
 
    ```bash
-   python app.py
+   python lithub.py
    ```
 
 6. **Open your browser**
